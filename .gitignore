@@ -1,0 +1,58 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# Compilação e Build
+dist/
+build/
+out/
+
+# Configurações do Editor
+.vscode/
+.idea/
+*.swp
+
+# Arquivos de Ambiente
+.env
+.env.*.local
+
+# Cache do TypeScript
+*.tsbuildinfo
+
+# Testes
+coverage/
+jest.config.js
+
+# Sistema Operacional
+.DS_Store
+Thumbs.db
+
+# Dependências locais
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Ferramentas e Bibliotecas
+.eslintcache
+*.sqlite
+.cache/
+
+# Twilio (caso tenha alguma configuração ou cache)
+twilio.json
+.twilio/
+
+# OpenAI (caso esteja usando arquivos temporários)
+openai.json
+
+# Arquivos gerados pelo processo de agendamento
+/temp/
+*.tmp
+
+# Outros (inclua customizações específicas para o projeto)
