@@ -1,22 +1,29 @@
 import { Injectable } from '@nestjs/common';
-import { TwilioService } from './twilio.service';
+import { WhatsappService } from './whatsapp.service';
 import { OpenAiService } from './openai.service';
 import { ChatbotFlows } from '../flows/chatbot.flows';
-import { getLocationInfo, getMockedCity } from 'src/common/global-functions/cities';
+import { getLocationInfo } from 'src/common/global-functions/cities';
 import { EntenderDataHoraPrompt } from 'src/common/prompt/ouvirmais-promt';
-
 @Injectable()
 export class ChatbotService {
-  private conversations: Record<string, { messages: string[]; state: any }> = {};
+  private conversations: Record<string, { messages: string[]; state: any }> =
+    {};
 
   constructor(
-    private readonly twilioService: TwilioService,
+    private readonly whatsappService: WhatsappService,
     private readonly openAiService: OpenAiService,
   ) {}
 
-  async handleMessage({ From, Body, ProfileName }: { From: string; Body: string; ProfileName: string }) {
-    const userId = From.replace('whatsapp:', '');
-
+  async handleMessage({
+    From,
+    Body,
+    ProfileName,
+  }: {
+    From: string;
+    Body: string;
+    ProfileName: string;
+  }) {
+    const userId = From.replace(/\D/g, '');
     if (!this.conversations[userId]) {
       this.conversations[userId] = {
         messages: [],
@@ -24,8 +31,6 @@ export class ChatbotService {
           location: null,
           selectedDate: null,
           selectedTime: null,
-          awaitingConfirmation: false,
-          awaitingLocation: false,
           appointmentConfirmed: false,
         },
       };
@@ -36,74 +41,76 @@ export class ChatbotService {
     let responseMessage = '';
 
     const isGreeting = /oi|olá|bom dia|boa tarde|boa noite/i.test(Body);
-    const isConfirmation = /sim|claro|com certeza|ok|sim, desejo/i.test(Body.toLowerCase());
-    const isSchedulingIntent = /agendar|consulta|horário/i.test(Body.toLowerCase());
-    const isProvidingCity = userConversation.state.awaitingLocation;
-    const isProvidingDateTime = userConversation.state.awaitingConfirmation;
+    const isConfirmation = /sim|claro|com certeza|ok|sim, desejo/i.test(
+      Body.toLowerCase(),
+    );
+    const isSchedulingIntent = /agendar|consulta|horário/i.test(
+      Body.toLowerCase(),
+    );
 
     if (userConversation.state.appointmentConfirmed) {
-      // Respostas após a confirmação do agendamento
-      const history = userConversation.messages.join('\n');
-      responseMessage = await this.openAiService.generateResponse(history);
+      responseMessage = await this.openAiService.generateResponse(
+        userConversation.messages.join('\n'),
+      );
     } else if (isGreeting) {
       responseMessage = ChatbotFlows.welcome(ProfileName || userId).message;
-    } else if (isConfirmation && !userConversation.state.appointmentConfirmed) {
-      // Confirmar intenção de agendamento
+    } else if (isConfirmation) {
       const availableDates = await this.simulateFetchAvailableDates();
       responseMessage = ChatbotFlows.schedule(availableDates).message;
-      userConversation.state.awaitingConfirmation = true;
       userConversation.state.availableDates = availableDates;
     } else if (isSchedulingIntent) {
-      if (userConversation.state.location && userConversation.state.selectedDate && userConversation.state.selectedTime) {
-        responseMessage = this.generateConfirmationMessage(userConversation.state, ProfileName || userId);
-        userConversation.state.appointmentConfirmed = true; // Marca o fluxo como finalizado
-      } else {
-        const availableDates = await this.simulateFetchAvailableDates();
-        responseMessage = ChatbotFlows.schedule(availableDates).message;
-        userConversation.state.awaitingConfirmation = true;
-        userConversation.state.availableDates = availableDates;
-      }
-    } else if (isProvidingCity) {
-      const location = getLocationInfo(Body.trim().toLowerCase());
-      if (location) {
-        userConversation.state.location = Body.trim().toLowerCase();
-        userConversation.state.awaitingLocation = false;
-
-        if (userConversation.state.selectedDate && userConversation.state.selectedTime) {
-          responseMessage = this.generateConfirmationMessage(userConversation.state, ProfileName || userId);
-          userConversation.state.appointmentConfirmed = true;
-        } else {
-          responseMessage = 'Agora, informe a data e o horário desejados para sua consulta.';
-          userConversation.state.awaitingConfirmation = true;
-        }
-      } else {
-        responseMessage = 'Não reconhecemos essa cidade. Por favor, informe uma cidade válida.';
-      }
-    } else if (isProvidingDateTime) {
-      const result = await this.processSchedulingInputWithGPT(Body, userConversation.state.availableDates);
+      const availableDates = await this.simulateFetchAvailableDates();
+      responseMessage = ChatbotFlows.schedule(availableDates).message;
+      userConversation.state.availableDates = availableDates;
+    } else if (userConversation.state.awaitingConfirmation) {
+      // Interpretar data/hora usando GPT
+      const result = await this.processSchedulingInputWithGPT(
+        Body,
+        userConversation.state.availableDates,
+      );
 
       if (result.complete) {
         userConversation.state.selectedDate = result.date;
         userConversation.state.selectedTime = result.time;
 
         if (!userConversation.state.location) {
-          responseMessage = 'Por favor, informe a cidade para confirmarmos o agendamento.';
+          responseMessage =
+            'Por favor, informe a cidade para confirmarmos o agendamento.';
           userConversation.state.awaitingLocation = true;
         } else {
-          responseMessage = this.generateConfirmationMessage(userConversation.state, ProfileName || userId);
+          responseMessage = this.generateConfirmationMessage(
+            userConversation.state,
+            ProfileName || userId,
+          );
           userConversation.state.appointmentConfirmed = true;
         }
       } else {
-        responseMessage = 'Não consegui entender sua escolha de data e horário. Por favor, informe ambos de forma clara.';
+        responseMessage =
+          'Não consegui entender sua escolha de data e horário. Por favor, informe ambos de forma clara.';
+      }
+    } else if (userConversation.state.awaitingLocation) {
+      const location = getLocationInfo(Body.trim().toLowerCase());
+      if (location) {
+        userConversation.state.location = Body.trim().toLowerCase();
+        userConversation.state.awaitingLocation = false;
+
+        responseMessage = this.generateConfirmationMessage(
+          userConversation.state,
+          ProfileName || userId,
+        );
+        userConversation.state.appointmentConfirmed = true;
+      } else {
+        responseMessage =
+          'Não reconhecemos essa cidade. Por favor, informe uma cidade válida.';
       }
     } else {
-      // Fallback: ChatGPT para respostas contextuais
-      const history = userConversation.messages.join('\n');
-      responseMessage = await this.openAiService.generateResponse(history);
+      responseMessage = await this.openAiService.generateResponse(
+        userConversation.messages.join('\n'),
+      );
     }
 
     userConversation.messages.push(`Bot: ${responseMessage}`);
-    await this.twilioService.sendMessage(userId, responseMessage);
+    await this.whatsappService.sendMessage(userId, responseMessage);
 
     return { response: responseMessage };
   }
@@ -116,7 +123,10 @@ export class ChatbotService {
     ];
   }
 
-  private async processSchedulingInputWithGPT(input: string, availableDates: { date: string; times: string[] }[]) {
+  private async processSchedulingInputWithGPT(
+    input: string,
+    availableDates: { date: string; times: string[] }[],
+  ) {
     const gptPrompt = EntenderDataHoraPrompt(input, availableDates);
 
     const gptResponse = await this.openAiService.generateResponse(gptPrompt);
@@ -139,6 +149,3 @@ export class ChatbotService {
     }).message;
   }
 }
-
-
-

@@ -27,11 +27,13 @@ const locations = {
     phone: '+55 (11) 2312-7774',
   },
   'mogi das cruzes': {
-    address: 'Praça Norival Gonçalves Tavares, 281 – Centro, Mogi das Cruzes – SP',
+    address:
+      'Praça Norival Gonçalves Tavares, 281 – Centro, Mogi das Cruzes – SP',
     phone: '+55 (11) 2378-3191',
   },
   'sao jose dos campos': {
-    address: 'Av. Adhemar de Barros, 1.103 – Vila Adyana – São José dos Campos/SP',
+    address:
+      'Av. Adhemar de Barros, 1.103 – Vila Adyana – São José dos Campos/SP',
     phone: '+55 (12) 3207-0012',
   },
   taubate: {
@@ -68,7 +70,7 @@ const locations = {
   },
 };
 
-export function getMockedCity(userId) {
+export function getMockedCity() {
   return mockCities[Math.floor(Math.random() * mockCities.length)];
 }
 

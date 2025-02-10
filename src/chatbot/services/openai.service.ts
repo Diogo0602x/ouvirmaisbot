@@ -15,7 +15,7 @@ export class OpenAiService {
 
   async generateResponse(conversation: string): Promise<string> {
     const url = 'https://api.openai.com/v1/chat/completions';
-  
+
     const payload = {
       model: 'gpt-3.5-turbo',
       messages: [
@@ -24,7 +24,7 @@ export class OpenAiService {
       ],
       max_tokens: 200,
     };
-  
+
     try {
       const response = await lastValueFrom(
         this.httpService.post(url, payload, {
@@ -34,15 +34,16 @@ export class OpenAiService {
           },
         }),
       );
-  
+
       const generatedText = response.data.choices[0].message.content.trim();
       this.logger.log(`Resposta gerada pelo GPT: ${generatedText}`);
       return generatedText;
     } catch (error) {
-      this.logger.error('Erro ao gerar resposta pelo GPT:', error.response?.data || error.message);
+      this.logger.error(
+        'Erro ao gerar resposta pelo GPT:',
+        error.response?.data || error.message,
+      );
       throw new Error('Erro ao gerar resposta pelo GPT.');
     }
   }
-  
-  
 }

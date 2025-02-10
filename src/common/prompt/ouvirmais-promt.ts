@@ -45,14 +45,12 @@ Você é um assistente especializado da Ouvir Mais Aparelhos Auditivos, uma empr
 `;
 
 export const EntenderDataHoraPrompt = (
-   input: string,
-   availableDates: { date: string; times: string[] }[]
- ): string => `
+  input: string,
+  availableDates: { date: string; times: string[] }[],
+): string => `
  Você é um assistente especializado da Ouvir Mais Aparelhos Auditivos. Baseado na seguinte lista de horários disponíveis:
  
- ${availableDates
-   .map((d) => `${d.date}: ${d.times.join(', ')}`)
-   .join('\n')}
+ ${availableDates.map((d) => `${d.date}: ${d.times.join(', ')}`).join('\n')}
  
  Por favor, analise a mensagem do cliente abaixo e determine a data e o horário selecionados. Retorne um JSON no formato:
  {

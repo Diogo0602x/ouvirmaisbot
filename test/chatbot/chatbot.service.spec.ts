@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ChatbotService } from '../../src/chatbot/services/chatbot.service';
-import { TwilioService } from '../../src/chatbot/services/twilio.service';
+import { TwilioService } from '../../src/chatbot/services/whatsapp.service';
 
 describe('ChatbotService', () => {
   let service: ChatbotService;
@@ -20,7 +20,11 @@ describe('ChatbotService', () => {
   });
 
   it('should send a welcome message', async () => {
-    const mockRequest = { From: 'whatsapp:+123456789', Body: 'Hello', ProfileName: 'John' };
+    const mockRequest = {
+      From: 'whatsapp:+123456789',
+      Body: 'Hello',
+      ProfileName: 'John',
+    };
     const response = await service.handleMessage(mockRequest);
     expect(response.message).toContain('Olá senhor(a) John');
     expect(mockTwilioService.sendMessage).toHaveBeenCalledWith(
