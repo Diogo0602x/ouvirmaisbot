@@ -3,7 +3,13 @@ import { WhatsappService } from './whatsapp.service';
 import { OpenAiService } from './openai.service';
 import { ChatbotFlows } from '../flows/chatbot.flows';
 import { getLocationInfo } from 'src/common/global-functions/cities';
-import { EntenderDataHoraPrompt } from 'src/common/prompt/ouvirmais-promt';
+import { formatPhoneNumber } from 'src/common/utils/phone.util';
+import {
+  simulateFetchAvailableDates,
+  processSchedulingInputWithGPT,
+  generateConfirmationMessage,
+} from 'src/common/utils/chatbot.util';
+
 @Injectable()
 export class ChatbotService {
   private conversations: Record<string, { messages: string[]; state: any }> =
@@ -18,25 +24,46 @@ export class ChatbotService {
     From,
     Body,
     ProfileName,
+    Contacts,
   }: {
     From: string;
     Body: string;
-    ProfileName: string;
+    ProfileName?: string;
+    Contacts?: any;
   }) {
-    const userId = From.replace(/\D/g, '');
+    const userId = formatPhoneNumber(From);
+
+    const userName = Contacts?.[0]?.profile?.name || ProfileName || userId;
+
     if (!this.conversations[userId]) {
       this.conversations[userId] = {
         messages: [],
         state: {
+          name: userName,
           location: null,
           selectedDate: null,
           selectedTime: null,
           appointmentConfirmed: false,
+          awaitingConfirmation: false,
+          awaitingLocation: false,
         },
       };
     }
 
     const userConversation = this.conversations[userId];
+
+    if (
+      !userConversation.state.name ||
+      userConversation.state.name === 'Usuário'
+    ) {
+      userConversation.state.name = userName;
+    }
+
+    console.log(
+      '📩 Conversação Atualizada:',
+      JSON.stringify(userConversation, null, 2),
+    );
+
     userConversation.messages.push(`User: ${Body}`);
     let responseMessage = '';
 
@@ -53,18 +80,16 @@ export class ChatbotService {
         userConversation.messages.join('\n'),
       );
     } else if (isGreeting) {
-      responseMessage = ChatbotFlows.welcome(ProfileName || userId).message;
-    } else if (isConfirmation) {
-      const availableDates = await this.simulateFetchAvailableDates();
+      responseMessage = ChatbotFlows.welcome(
+        userConversation.state.name,
+      ).message;
+    } else if (isConfirmation || isSchedulingIntent) {
+      const availableDates = await simulateFetchAvailableDates();
       responseMessage = ChatbotFlows.schedule(availableDates).message;
       userConversation.state.availableDates = availableDates;
-    } else if (isSchedulingIntent) {
-      const availableDates = await this.simulateFetchAvailableDates();
-      responseMessage = ChatbotFlows.schedule(availableDates).message;
-      userConversation.state.availableDates = availableDates;
+      userConversation.state.awaitingConfirmation = true;
     } else if (userConversation.state.awaitingConfirmation) {
-      // Interpretar data/hora usando GPT
-      const result = await this.processSchedulingInputWithGPT(
+      const result = await processSchedulingInputWithGPT(
         Body,
         userConversation.state.availableDates,
       );
@@ -78,10 +103,10 @@ export class ChatbotService {
             'Por favor, informe a cidade para confirmarmos o agendamento.';
           userConversation.state.awaitingLocation = true;
         } else {
-          responseMessage = this.generateConfirmationMessage(
+          responseMessage = generateConfirmationMessage(
             userConversation.state,
-            ProfileName || userId,
-          );
+            userConversation.state.name,
+          ).message;
           userConversation.state.appointmentConfirmed = true;
         }
       } else {
@@ -94,10 +119,10 @@ export class ChatbotService {
         userConversation.state.location = Body.trim().toLowerCase();
         userConversation.state.awaitingLocation = false;
 
-        responseMessage = this.generateConfirmationMessage(
+        responseMessage = generateConfirmationMessage(
           userConversation.state,
-          ProfileName || userId,
-        );
+          userConversation.state.name,
+        ).message;
         userConversation.state.appointmentConfirmed = true;
       } else {
         responseMessage =
@@ -110,42 +135,9 @@ export class ChatbotService {
     }
 
     userConversation.messages.push(`Bot: ${responseMessage}`);
+
     await this.whatsappService.sendMessage(userId, responseMessage);
 
     return { response: responseMessage };
-  }
-
-  private async simulateFetchAvailableDates() {
-    return [
-      { date: '16/01 (terça-feira)', times: ['10:00', '14:00', '16:00'] },
-      { date: '17/01 (quarta-feira)', times: ['09:00', '13:00', '15:00'] },
-      { date: '18/01 (quinta-feira)', times: ['11:00', '14:30', '16:30'] },
-    ];
-  }
-
-  private async processSchedulingInputWithGPT(
-    input: string,
-    availableDates: { date: string; times: string[] }[],
-  ) {
-    const gptPrompt = EntenderDataHoraPrompt(input, availableDates);
-
-    const gptResponse = await this.openAiService.generateResponse(gptPrompt);
-    try {
-      return JSON.parse(gptResponse);
-    } catch (error) {
-      console.error('Erro ao processar a resposta do GPT:', error);
-      return { complete: false };
-    }
-  }
-
-  private generateConfirmationMessage(state: any, name: string) {
-    const location = getLocationInfo(state.location);
-    return ChatbotFlows.confirmSchedule({
-      name,
-      date: state.selectedDate,
-      time: state.selectedTime,
-      address: location?.address || 'Endereço não encontrado',
-      phone: location?.phone || 'Telefone não encontrado',
-    }).message;
   }
 }

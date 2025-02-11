@@ -16,10 +16,10 @@ export class ChatbotController {
     const VERIFY_TOKEN = process.env.WEBHOOK_VERIFY_TOKEN;
 
     if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-      console.log('WEBHOOK VERIFICADO COM SUCESSO!');
+      console.log('✅ WEBHOOK VERIFICADO COM SUCESSO!');
       return res.status(200).send(challenge);
     } else {
-      console.error('Falha na verificação do webhook.');
+      console.error('❌ Falha na verificação do webhook.');
       return res.status(403).send('Falha na verificação');
     }
   }
@@ -29,7 +29,13 @@ export class ChatbotController {
     console.log('📩 Mensagem recebida:', JSON.stringify(body, null, 2));
 
     if (body.object === 'whatsapp_business_account') {
-      const messageEvent = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+      const entry = body.entry?.[0];
+      const change = entry?.changes?.[0]?.value;
+
+      const messageEvent = change?.messages?.[0];
+      const contacts = change?.contacts || [];
+
+      console.log('🔍 Evento de mensagem:', messageEvent);
 
       if (messageEvent) {
         const senderId = messageEvent.from;
@@ -38,7 +44,8 @@ export class ChatbotController {
         const chatbotRequest: ChatbotRequestDto = {
           From: senderId,
           Body: messageText,
-          ProfileName: messageEvent.profile?.name || 'Usuário',
+          ProfileName: contacts?.[0]?.profile?.name || 'Usuário',
+          Contacts: contacts,
         };
 
         return await this.chatbotService.handleMessage(chatbotRequest);
