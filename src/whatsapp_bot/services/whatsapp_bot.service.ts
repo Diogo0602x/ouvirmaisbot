@@ -1,39 +1,31 @@
 import { Injectable } from '@nestjs/common';
-import { WhatsappService } from './whatsapp.service';
-import { OpenAiService } from './openai.service';
-import { ChatbotFlows } from '../flows/chatbot.flows';
-import { getLocationInfo } from 'src/common/global-functions/cities';
-import { formatPhoneNumber } from 'src/common/utils/phone.util';
+import { OpenAiService } from 'src/open_ai/services/openai.service';
+import { getLocationInfo } from '../../common/global-functions/cities';
 import {
-  simulateFetchAvailableDates,
-  processSchedulingInputWithGPT,
   generateConfirmationMessage,
-} from 'src/common/utils/chatbot.util';
-
+  processSchedulingInputWithGPT,
+  simulateFetchAvailableDates,
+} from '../../common/utils/chatbot.util';
+import { formatPhoneNumber } from '../../common/utils/phone.util';
+import { WhatsAppMessageDto } from '../dtos/whatsapp_message.dto';
+import {
+  ChatbotFlows,
+  ConversationData,
+} from '../interfaces/whatsapp.interfaces';
+import { WhatsappService } from './whatsapp.service';
 @Injectable()
-export class ChatbotService {
-  private conversations: Record<string, { messages: string[]; state: any }> =
-    {};
+export class WhatsappBotService {
+  private conversations: Record<string, ConversationData> = {};
 
   constructor(
     private readonly whatsappService: WhatsappService,
     private readonly openAiService: OpenAiService,
   ) {}
 
-  async handleMessage({
-    From,
-    Body,
-    ProfileName,
-    Contacts,
-  }: {
-    From: string;
-    Body: string;
-    ProfileName?: string;
-    Contacts?: any;
-  }) {
-    const userId = formatPhoneNumber(From);
-
-    const userName = Contacts?.[0]?.profile?.name || ProfileName || userId;
+  async handleMessage(request: WhatsAppMessageDto) {
+    const userId = formatPhoneNumber(request.From);
+    const userName =
+      request.Contacts?.[0]?.profile?.name || request.ProfileName || userId;
 
     if (!this.conversations[userId]) {
       this.conversations[userId] = {
@@ -64,15 +56,15 @@ export class ChatbotService {
       JSON.stringify(userConversation, null, 2),
     );
 
-    userConversation.messages.push(`User: ${Body}`);
+    userConversation.messages.push(`User: ${request.Body}`);
     let responseMessage = '';
 
-    const isGreeting = /oi|olá|bom dia|boa tarde|boa noite/i.test(Body);
+    const isGreeting = /oi|olá|bom dia|boa tarde|boa noite/i.test(request.Body);
     const isConfirmation = /sim|claro|com certeza|ok|sim, desejo/i.test(
-      Body.toLowerCase(),
+      request.Body.toLowerCase(),
     );
     const isSchedulingIntent = /agendar|consulta|horário/i.test(
-      Body.toLowerCase(),
+      request.Body.toLowerCase(),
     );
 
     if (userConversation.state.appointmentConfirmed) {
@@ -90,7 +82,7 @@ export class ChatbotService {
       userConversation.state.awaitingConfirmation = true;
     } else if (userConversation.state.awaitingConfirmation) {
       const result = await processSchedulingInputWithGPT(
-        Body,
+        request.Body,
         userConversation.state.availableDates,
       );
 
@@ -114,9 +106,9 @@ export class ChatbotService {
           'Não consegui entender sua escolha de data e horário. Por favor, informe ambos de forma clara.';
       }
     } else if (userConversation.state.awaitingLocation) {
-      const location = getLocationInfo(Body.trim().toLowerCase());
+      const location = getLocationInfo(request.Body.trim().toLowerCase());
       if (location) {
-        userConversation.state.location = Body.trim().toLowerCase();
+        userConversation.state.location = request.Body.trim().toLowerCase();
         userConversation.state.awaitingLocation = false;
 
         responseMessage = generateConfirmationMessage(

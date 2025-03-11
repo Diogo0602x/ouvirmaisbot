@@ -1,10 +1,11 @@
-import { Controller, Get, Post, Query, Body, Res } from '@nestjs/common';
-import { ChatbotService } from '../services/chatbot.service';
-import { ChatbotRequestDto } from '../dtos/chatbot-request.dto';
+import { Body, Controller, Get, Post, Query, Res } from '@nestjs/common';
+import { WhatsAppMessageDto } from '../dtos/whatsapp_message.dto';
+import { WhatsAppWebhookDto } from '../dtos/whatsapp_webhook.dto';
+import { WhatsappBotService } from '../services/whatsapp_bot.service';
 
 @Controller('webhook')
-export class ChatbotController {
-  constructor(private readonly chatbotService: ChatbotService) {}
+export class WhatsappBotController {
+  constructor(private readonly whatsappBotService: WhatsappBotService) {}
 
   @Get('whatsapp')
   verifyWebhook(
@@ -25,7 +26,7 @@ export class ChatbotController {
   }
 
   @Post('whatsapp')
-  async receiveMessage(@Body() body: any) {
+  async receiveMessage(@Body() body: WhatsAppWebhookDto) {
     console.log('📩 Mensagem recebida:', JSON.stringify(body, null, 2));
 
     if (body.object === 'whatsapp_business_account') {
@@ -38,17 +39,16 @@ export class ChatbotController {
       console.log('🔍 Evento de mensagem:', messageEvent);
 
       if (messageEvent) {
-        const senderId = messageEvent.from;
-        const messageText = messageEvent.text?.body || '';
-
-        const chatbotRequest: ChatbotRequestDto = {
-          From: senderId,
-          Body: messageText,
+        const whatsappRequest: WhatsAppMessageDto = {
+          From: messageEvent.from,
+          Body: messageEvent.text?.body || '',
           ProfileName: contacts?.[0]?.profile?.name || 'Usuário',
           Contacts: contacts,
+          MessageId: messageEvent.id,
+          Timestamp: messageEvent.timestamp,
         };
 
-        return await this.chatbotService.handleMessage(chatbotRequest);
+        return await this.whatsappBotService.handleMessage(whatsappRequest);
       }
     }
 

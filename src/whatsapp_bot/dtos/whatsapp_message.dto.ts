@@ -1,8 +1,10 @@
-export class ChatbotRequestDto {
+export class WhatsAppMessageDto {
   From: string;
   Body: string;
   ProfileName: string;
-  Contacts: {
+  MessageId?: string;
+  Timestamp?: number;
+  Contacts?: {
     profile: {
       name: string;
     };

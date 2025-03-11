@@ -1,8 +1,8 @@
-import { getLocationInfo } from 'src/common/global-functions/cities';
-import { EntenderDataHoraPrompt } from 'src/common/prompt/ouvirmais-promt';
-import { OpenAiService } from 'src/chatbot/services/openai.service';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
+import { getLocationInfo } from 'src/common/global-functions/cities';
+import { EntenderDataHoraPrompt } from 'src/common/prompt/ouvirmais-promt';
+import { OpenAiService } from 'src/open_ai/services/openai.service';
 
 export async function simulateFetchAvailableDates() {
   return [
